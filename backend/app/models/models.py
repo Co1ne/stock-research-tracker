@@ -17,6 +17,8 @@ class Company(Base, TimestampMixin):
     code: Mapped[str] = mapped_column(String(20), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(100), index=True)
     market: Mapped[str] = mapped_column(String(20), default='A')
+    industry: Mapped[str | None] = mapped_column(String(100))
+    main_business: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(20), default='watching')
     holding_cost: Mapped[float | None] = mapped_column(Float)
     target_price: Mapped[float | None] = mapped_column(Float)
@@ -34,6 +36,8 @@ class BusinessLine(Base, TimestampMixin):
     description: Mapped[str | None] = mapped_column(Text)
     keywords: Mapped[list[str] | None] = mapped_column(JSON)
     key_metrics: Mapped[str | None] = mapped_column(Text)
+    confidence: Mapped[str | None] = mapped_column(String(20))
+    generated_by: Mapped[str | None] = mapped_column(String(20))
 
 
 class Announcement(Base, TimestampMixin):
@@ -148,13 +152,73 @@ class BusinessLineEvidence(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey('companies.id'), index=True)
     business_line_id: Mapped[int | None] = mapped_column(ForeignKey('business_lines.id'), index=True)
+    hypothesis_id: Mapped[int | None] = mapped_column(ForeignKey('investment_hypotheses.id'), index=True)
+    risk_event_id: Mapped[int | None] = mapped_column(ForeignKey('risk_events.id'), index=True)
     source_type: Mapped[str] = mapped_column(String(20))
     source_id: Mapped[int] = mapped_column(Integer)
+    source_title: Mapped[str | None] = mapped_column(String(255))
+    source_url: Mapped[str | None] = mapped_column(String(500))
+    source_date: Mapped[datetime | None] = mapped_column(DateTime)
     evidence_type: Mapped[str] = mapped_column(String(50), default='other')
     direction: Mapped[str] = mapped_column(String(20), default='uncertain')
     logic_impact: Mapped[str] = mapped_column(String(20), default='uncertain')
+    severity: Mapped[str] = mapped_column(String(20), default='low')
     title: Mapped[str] = mapped_column(String(255))
     summary: Mapped[str | None] = mapped_column(Text)
     reason: Mapped[str | None] = mapped_column(Text)
-    confidence: Mapped[str] = mapped_column(String(20), default='low')
+    confidence: Mapped[str] = mapped_column(String(20), default='rule')
+    review_status: Mapped[str] = mapped_column(String(20), default='pending')
     need_manual_review: Mapped[bool] = mapped_column(Boolean, default=False)
+    ai_summary: Mapped[str | None] = mapped_column(Text)
+    ai_impact_judgment: Mapped[str | None] = mapped_column(String(20))
+    ai_reason: Mapped[str | None] = mapped_column(Text)
+    ai_confidence: Mapped[str | None] = mapped_column(String(20))
+    ai_generated_at: Mapped[datetime | None] = mapped_column(DateTime)
+    manual_override: Mapped[bool] = mapped_column(Boolean, default=False)
+    manual_note: Mapped[str | None] = mapped_column(Text)
+
+
+class InvestmentHypothesis(Base, TimestampMixin):
+    __tablename__ = 'investment_hypotheses'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey('companies.id'), index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text)
+    related_business_line_ids: Mapped[list[int] | None] = mapped_column(JSON)
+    falsification_conditions: Mapped[list[str] | None] = mapped_column(JSON)
+    status: Mapped[str] = mapped_column(String(20), default='unverified')
+    review_status: Mapped[str] = mapped_column(String(20), default='pending')
+    latest_evidence_summary: Mapped[str | None] = mapped_column(Text)
+    generated_by: Mapped[str] = mapped_column(String(20), default='rule')
+
+
+class FinancialSnapshot(Base, TimestampMixin):
+    __tablename__ = 'financial_snapshots'
+    __table_args__ = (UniqueConstraint('company_id', 'report_period', name='uq_financial_company_period'),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey('companies.id'), index=True)
+    stock_code: Mapped[str] = mapped_column(String(20), index=True)
+    report_period: Mapped[str] = mapped_column(String(50), index=True)
+    revenue: Mapped[float | None] = mapped_column(Float)
+    net_profit: Mapped[float | None] = mapped_column(Float)
+    net_profit_deducted: Mapped[float | None] = mapped_column(Float)
+    gross_margin: Mapped[float | None] = mapped_column(Float)
+    net_margin: Mapped[float | None] = mapped_column(Float)
+    operating_cash_flow: Mapped[float | None] = mapped_column(Float)
+    accounts_receivable: Mapped[float | None] = mapped_column(Float)
+    inventory: Mapped[float | None] = mapped_column(Float)
+    debt_asset_ratio: Mapped[float | None] = mapped_column(Float)
+    roe: Mapped[float | None] = mapped_column(Float)
+    source: Mapped[str | None] = mapped_column(String(50))
+    raw_data: Mapped[dict | None] = mapped_column(JSON)
+
+
+class JobRun(Base, TimestampMixin):
+    __tablename__ = 'job_runs'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    job_name: Mapped[str] = mapped_column(String(100), index=True)
+    status: Mapped[str] = mapped_column(String(20), default='running', index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime)
+    result_summary: Mapped[dict | None] = mapped_column(JSON)
+    error_message: Mapped[str | None] = mapped_column(Text)
