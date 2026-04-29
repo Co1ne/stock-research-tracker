@@ -8,6 +8,8 @@ class BusinessLineBase(BaseModel):
     description: str | None = None
     keywords: list[str] | None = None
     key_metrics: str | None = None
+    confidence: str | None = None
+    generated_by: str | None = None
 
 
 class BusinessLineCreate(BusinessLineBase):

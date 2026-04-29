@@ -74,6 +74,16 @@ curl -I http://127.0.0.1:8324/api/health
 ## API
 
 - `GET /api/health`
+- `POST /api/companies/initialize`
+- `GET /api/companies/initialize/{task_id}`
+- `POST /api/companies/initialize/{task_id}/confirm`
+- `POST /api/fetch/announcements`
+- `POST /api/fetch/news`
+- `POST /api/fetch/financials`
+- `GET /api/fetch/status`
+- `GET /api/jobs/runs`
+- `GET /api/announcements`
+- `GET /api/news`
 - `POST /api/companies`
 - `GET /api/companies`
 - `POST /api/business-lines`
@@ -92,3 +102,5 @@ curl -I http://127.0.0.1:8324/api/health
 - 前端生产 API baseURL 默认为 `/api`，可通过 `VITE_API_BASE_URL` 覆盖。
 - Vite `base` 明确配置为 `/`，适合部署在 `http://ip:port/` 根路径。
 - 前端 Nginx 只对页面路由 fallback 到 `index.html`；`/assets/` 找不到会返回 `404`，避免 JS/CSS 请求错误地拿到 HTML。
+- 真实数据源默认使用 AKShare。mock 新闻/公告接口仅用于测试和兜底，不作为主流程。
+- 后端本地验证必须使用 `.venv`：`.venv/bin/python -m compileall backend/app`，以及 `cd backend && ../.venv/bin/python -m pytest`。

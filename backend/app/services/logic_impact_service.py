@@ -14,7 +14,7 @@ PROMPT_VERSION = 'v2.logic.1'
 class LogicImpactService:
     def __init__(self, db: Session):
         self.db = db
-        provider = MockAIProvider() if settings.ai_provider != 'openai' else OpenAIProvider()
+        provider = OpenAIProvider() if settings.ai_enabled and settings.ai_provider == 'openai' else MockAIProvider()
         self.ai_service = AIService(provider)
 
     def _build_payload(self, company: Company, lines: list[BusinessLine], item: Announcement | NewsItem, source_type: str) -> dict:

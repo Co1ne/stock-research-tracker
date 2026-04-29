@@ -23,12 +23,32 @@ class BusinessLineEvidenceService:
     def _create(self, source_type: str, source_id: int, company_id: int, title: str, summary: str, logic_impact: str, evidence_type: str, reason: str, confidence: str, need_manual_review: bool, text: str):
         lines = self._matched_lines(company_id, text)
         target_ids = [l.id for l in lines] or [None]
+        source = self.db.get(Announcement, source_id) if source_type == 'announcement' else self.db.get(NewsItem, source_id)
         count = 0
         for bl_id in target_ids:
             exists = self.db.query(BusinessLineEvidence).filter(and_(BusinessLineEvidence.source_type == source_type, BusinessLineEvidence.source_id == source_id, BusinessLineEvidence.business_line_id.is_(bl_id))).first()
             if exists:
                 continue
-            self.db.add(BusinessLineEvidence(company_id=company_id, business_line_id=bl_id, source_type=source_type, source_id=source_id, evidence_type=evidence_type or 'other', direction=self._direction(logic_impact), logic_impact=logic_impact or 'uncertain', title=title, summary=summary, reason=reason, confidence=confidence or 'low', need_manual_review=need_manual_review))
+            direction = self._direction(logic_impact)
+            self.db.add(BusinessLineEvidence(
+                company_id=company_id,
+                business_line_id=bl_id,
+                source_type=source_type,
+                source_id=source_id,
+                source_title=title,
+                source_url=getattr(source, 'url', None),
+                source_date=getattr(source, 'publish_time', None),
+                evidence_type=evidence_type or 'other',
+                direction=direction,
+                logic_impact=logic_impact or 'uncertain',
+                severity='medium' if need_manual_review or direction == 'negative' else 'low',
+                title=title,
+                summary=summary,
+                reason=reason,
+                confidence=confidence or 'rule',
+                review_status='pending' if need_manual_review else 'confirmed',
+                need_manual_review=need_manual_review,
+            ))
             count += 1
         self.db.commit()
         return count
