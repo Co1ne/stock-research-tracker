@@ -1,10 +1,8 @@
 # stock-research-tracker
 
-个人使用的 A 股自选股经营信息跟踪系统（V2 轻量版）。
+个人使用的 A 股自选股经营信息跟踪系统，定位是“经营信息跟踪 + 投资逻辑验证”。它不是量化交易系统，不做自动交易、回测或因子选股。
 
-> 定位：经营信息跟踪 + 投资逻辑验证。不是量化交易系统，不做自动交易/回测/因子选股。
-
-## 1. 快速启动（本地 / 服务器）
+## Quick Start
 
 ```bash
 cp .env.example .env
@@ -13,127 +11,67 @@ docker compose up -d --build
 
 启动后访问：
 
-- Web 首页: `http://<你的服务器IP>:8324/`
-- 健康检查: `http://<你的服务器IP>:8324/api/health`
-- FastAPI 文档: `http://<你的服务器IP>:8324/docs`
+- Web: `http://<server-ip>:8324/`
+- Health: `http://<server-ip>:8324/api/health`
+- FastAPI docs: `http://<server-ip>:8324/docs`
 
----
+## Local Frontend Build Check
 
-## 2. 部署文档（Docker Compose）
-
-### 2.1 服务器准备
-
-建议环境：
-
-- Linux (Ubuntu 22.04+)
-- Docker 24+
-- Docker Compose v2+
-- 2C4G 起步
-
-安装（Ubuntu 示例）：
+不依赖 Docker 时，可以先在开发环境验证前端构建：
 
 ```bash
-sudo apt update
-sudo apt install -y ca-certificates curl gnupg
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-  $(. /etc/os-release && echo $VERSION_CODENAME) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-sudo apt update
-sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-sudo usermod -aG docker $USER
+cd frontend
+npm install
+npm run build
 ```
 
-> 执行 `newgrp docker` 或重新登录后生效。
+期望结果：
 
-### 2.2 拉取代码并启动
+- `frontend/dist/index.html` 存在。
+- `frontend/dist/assets/` 存在，并包含带 hash 的 `.js` / `.css` 文件。
+- `dist/index.html` 中资源路径以 `/assets/` 开头，适合部署在站点根路径。
+
+## Blank Page Troubleshooting
+
+如果部署后页面空白，但 Network 请求基本都是 `200`，优先检查浏览器 Console：
+
+- 是否有 JS runtime error。
+- 是否有 MIME type error。
+- 是否有 `Failed to resolve module`。
+- 是否有 `Cannot read properties of undefined`。
+- 是否有 `process is not defined`。
+- 是否请求了 `http://backend:8000`。浏览器不能访问 Docker 内部 hostname，生产前端应请求 `/api`。
+
+Network 重点检查：
+
+- `/` 或 `/index.html` 是否返回 `200`。
+- `/assets/*.js` 是否返回 `200`，且 `Content-Type` 是 `application/javascript` 或等价 JS MIME。
+- `/assets/*.css` 是否返回 `200`，且 `Content-Type` 是 `text/css`。
+- JS 文件响应体是否真的是 JavaScript，而不是 `index.html`。
+- `/api/health` 是否返回 `200` 和 `{"status":"ok"}`。
+- API 请求是否走 `/api/...`，而不是 `http://backend:8000/...`。
+
+服务器上可手动执行的验证命令：
 
 ```bash
-git clone <你的仓库地址> stock-research-tracker
-cd stock-research-tracker
-cp .env.example .env
-docker compose up -d --build
-```
-
-### 2.3 常用运维命令
-
-```bash
-# 查看状态
 docker compose ps
-
-# 查看日志
-docker compose logs -f backend
-docker compose logs -f nginx
-
-# 重启
-docker compose restart backend
-
-# 停止
-docker compose down
-
-# 升级后重建
-git pull
-docker compose up -d --build
+docker compose logs frontend --tail=100
+docker compose logs nginx --tail=100
+docker compose logs backend --tail=100
+curl -I http://127.0.0.1:8324/
+curl -I http://127.0.0.1:8324/assets/<actual-js-file-name>
+curl -I http://127.0.0.1:8324/api/health
 ```
 
-### 2.4 端口与反向代理
+如果请求都是 `200` 但页面仍空白，最关键检查：
 
-固定对外端口为 `8324`（避免占用你机器上已有 `8080` 服务）。
+- JS 文件是不是返回了 HTML。
+- Console 是否有运行时错误。
+- App 是否挂载到 `#app` 并渲染了 `router-view`。
+- API baseURL 是否写死为 `backend:8000`。
+- 数据为空时是否访问了 `undefined.xxx`。
 
-如果你已有上层 Nginx / Caddy，可把域名反代到 `127.0.0.1:8324`。
-
-### 2.5 生产建议
-
-- 将 `POSTGRES_PASSWORD` 改为强密码（并同步 `DATABASE_URL`）。
-- 定期备份 PostgreSQL volume（`pgdata`）。
-- 建议配置 HTTPS（上层反代证书）。
-- 建议加系统级防火墙仅开放 80/443（或你实际端口）。
-
-
-### 2.6 国内服务器构建加速（Python 依赖）
-
-项目的 `backend/Dockerfile` 已默认使用清华 PyPI 镜像：
-
-- `https://pypi.tuna.tsinghua.edu.cn/simple`
-- `--trusted-host pypi.tuna.tsinghua.edu.cn`
-
-如果你在国内服务器执行 `docker compose build backend` 仍然较慢，可检查服务器 DNS/网络出口，或在低峰时段构建。
-
----
-
-## 3. 环境变量
-
-`.env.example` 已给出默认项：
-
-- `DATABASE_URL`
-- `AI_ENABLED`
-- `AI_PROVIDER`
-- `AI_API_KEY`
-- `AI_BASE_URL`
-- `AI_MODEL_FAST`
-- `AI_MODEL_STRONG`
-- `AI_ENABLE_WEB_SEARCH`
-- `FETCH_ANNOUNCEMENT_ENABLED`
-- `FETCH_NEWS_ENABLED`
-
-V2 默认可用 `MockAIProvider` 跑通，无需真实 AI Key。
-
----
-
-## 4. 当前能力（V2 核心）
-
-- 公司/业务线管理
-- 公告、新闻 mock 入库
-- 规则分类 + 风险识别
-- AI 逻辑影响判断（增强/削弱/中性/不确定）
-- 业务线证据库（正负面证据沉淀）
-- 逻辑摘要接口（30天统计）
-- 周报逻辑验证段落生成
-
----
-
-## 5. 关键 API
+## API
 
 - `GET /api/health`
 - `POST /api/companies`
@@ -147,34 +85,10 @@ V2 默认可用 `MockAIProvider` 跑通，无需真实 AI Key。
 - `GET /api/companies/{id}/evidence`
 - `GET /api/business-lines/{id}/evidence`
 - `GET /api/companies/{id}/logic-summary`
+- `POST /api/reports/daily`
 
----
+## Notes
 
-## 6. 数据备份（最小可用）
-
-```bash
-# 导出
-mkdir -p backups
-docker exec -t $(docker compose ps -q db) pg_dump -U postgres stock_research > backups/stock_research_$(date +%F).sql
-
-# 导入（空库）
-cat backups/your_backup.sql | docker exec -i $(docker compose ps -q db) psql -U postgres -d stock_research
-```
-
-
-
-## 7. 前端访问排查（端口改成 8324 但打不开）
-
-```bash
-# 1) 看映射是否生效
-docker compose ps
-
-# 2) 本机探活
-curl -I http://127.0.0.1:8324/
-curl -s http://127.0.0.1:8324/api/health
-
-# 3) 查看 nginx 日志
-docker compose logs -f nginx
-```
-
-如果 `curl /api/health` 返回 `{"status":"ok"}`，但浏览器打不开，通常是服务器安全组/防火墙未放行 `8324`。
+- 前端生产 API baseURL 默认为 `/api`，可通过 `VITE_API_BASE_URL` 覆盖。
+- Vite `base` 明确配置为 `/`，适合部署在 `http://ip:port/` 根路径。
+- 前端 Nginx 只对页面路由 fallback 到 `index.html`；`/assets/` 找不到会返回 `404`，避免 JS/CSS 请求错误地拿到 HTML。
