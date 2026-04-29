@@ -16,6 +16,9 @@ docker compose up -d --build
 - Web 首页: `http://<你的服务器IP>:8324/`
 - 健康检查: `http://<你的服务器IP>:8324/api/health`
 - FastAPI 文档: `http://<你的服务器IP>:8324/docs`
+- Web 首页: `http://<你的服务器IP>:8080/`
+- 健康检查: `http://<你的服务器IP>:8080/api/health`
+- FastAPI 文档: `http://<你的服务器IP>:8080/docs`
 
 ---
 
