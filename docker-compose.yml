@@ -20,6 +20,7 @@ services:
   nginx:
     image: nginx:1.27-alpine
     ports:
+      - "${APP_PORT:-8324}:80"
       - "8080:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro

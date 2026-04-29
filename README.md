@@ -13,6 +13,9 @@ docker compose up -d --build
 
 启动后访问：
 
+- Web 首页: `http://<你的服务器IP>:8324/`
+- 健康检查: `http://<你的服务器IP>:8324/api/health`
+- FastAPI 文档: `http://<你的服务器IP>:8324/docs`
 - Web 首页: `http://<你的服务器IP>:8080/`
 - 健康检查: `http://<你的服务器IP>:8080/api/health`
 - FastAPI 文档: `http://<你的服务器IP>:8080/docs`
@@ -79,9 +82,21 @@ docker compose up -d --build
 
 ### 2.4 端口与反向代理
 
-默认暴露 `8080`。如需改端口，修改 `docker-compose.yml` 中 nginx 端口映射。
+默认暴露端口由 `APP_PORT` 控制（默认 `8324`）。
 
-如果你已有上层 Nginx / Caddy，可把域名反代到 `127.0.0.1:8080`。
+如需改端口，请在 `.env` 中设置：
+
+```bash
+APP_PORT=9000
+```
+
+修改后重建：
+
+```bash
+docker compose up -d --build
+```
+
+如果你已有上层 Nginx / Caddy，可把域名反代到 `127.0.0.1:${APP_PORT}`。
 
 ### 2.5 生产建议
 
@@ -161,3 +176,20 @@ docker exec -t $(docker compose ps -q db) pg_dump -U postgres stock_research > b
 cat backups/your_backup.sql | docker exec -i $(docker compose ps -q db) psql -U postgres -d stock_research
 ```
 
+
+
+## 7. 前端访问排查（端口改成 8324 但打不开）
+
+```bash
+# 1) 看映射是否生效
+docker compose ps
+
+# 2) 本机探活
+curl -I http://127.0.0.1:${APP_PORT:-8324}/
+curl -s http://127.0.0.1:${APP_PORT:-8324}/api/health
+
+# 3) 查看 nginx 日志
+docker compose logs -f nginx
+```
+
+如果 `curl /api/health` 返回 `{"status":"ok"}`，但浏览器打不开，通常是服务器安全组/防火墙未放行 `APP_PORT`。
