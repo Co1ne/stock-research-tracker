@@ -90,6 +90,16 @@ docker compose up -d --build
 - 建议配置 HTTPS（上层反代证书）。
 - 建议加系统级防火墙仅开放 80/443（或你实际端口）。
 
+
+### 2.6 国内服务器构建加速（Python 依赖）
+
+项目的 `backend/Dockerfile` 已默认使用清华 PyPI 镜像：
+
+- `https://pypi.tuna.tsinghua.edu.cn/simple`
+- `--trusted-host pypi.tuna.tsinghua.edu.cn`
+
+如果你在国内服务器执行 `docker compose build backend` 仍然较慢，可检查服务器 DNS/网络出口，或在低峰时段构建。
+
 ---
 
 ## 3. 环境变量
