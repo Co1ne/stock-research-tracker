@@ -67,6 +67,41 @@ class QuoteDTO:
     source: str = 'unknown'
 
 
+@dataclass
+class DataSourceError:
+    source_name: str
+    source_type: str
+    message: str
+    raw_error: str | None = None
+
+
+@dataclass
+class DataSourceResult:
+    source_name: str
+    source_type: str
+    items: list = field(default_factory=list)
+    request_params: dict = field(default_factory=dict)
+    result_summary: dict = field(default_factory=dict)
+    error: DataSourceError | None = None
+
+    @property
+    def ok(self) -> bool:
+        return self.error is None
+
+
+class BaseDataSourceAdapter:
+    name = 'base'
+
+    def fetch_announcements(self, company, start_date: date | None = None, end_date: date | None = None) -> DataSourceResult:
+        raise NotImplementedError
+
+    def fetch_news(self, company, keywords: list[str] | None = None, limit: int = 20) -> DataSourceResult:
+        raise NotImplementedError
+
+    def fetch_financials(self, company) -> DataSourceResult:
+        raise NotImplementedError
+
+
 class AnnouncementProvider(Protocol):
     def fetch_announcements(self, stock_code: str, start_date: date | None, end_date: date | None) -> list[AnnouncementDTO]: ...
 

@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     fetch_max_news_per_company: int = 20
     fetch_lookback_days_announcement: int = 30
     fetch_lookback_days_news: int = 7
+    financial_risk_recent_periods: int = 8
     scheduler_enabled: bool = True
     report_jobs_enabled: bool = True
 

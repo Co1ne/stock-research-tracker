@@ -8,7 +8,7 @@ const Feed = {
   setup() {
     const { companies, loadCompanies } = useCompanies()
     const feed = ref([])
-    const filters = ref({ company_id: '', source_type: '', category: '', min_importance: '', is_risk: '', need_manual_review: '', logic_impact: '' })
+    const filters = ref({ company_id: '', source_type: '', source_name: '', category: '', min_importance: '', is_risk: '', need_manual_review: '', review_status: '', has_ingestion_run: '', logic_impact: '' })
     const message = ref('')
     const error = ref('')
     const fetching = ref(false)
@@ -75,11 +75,32 @@ const Feed = {
       }[impact] || '不确定'
     }
 
+    function reviewLabel(status) {
+      return {
+        pending: '待复核',
+        approved: '已确认',
+        rejected: '已驳回',
+        edited: '人工修改'
+      }[status] || '待复核'
+    }
+
+    function sourceLabel(name) {
+      return { akshare: 'AKShare', local: '本地 fallback' }[name] || name || '未记录来源'
+    }
+
+    function typeLabel(type) {
+      return { announcement: '公告', news: '新闻', financial: '财务' }[type] || type || '-'
+    }
+
+    function ingestionStatusLabel(status) {
+      return { success: '采集成功', partial_success: '部分成功', failed: '采集失败', skipped: '跳过' }[status] || '无采集记录'
+    }
+
     onMounted(async () => {
       await loadCompanies()
       await loadFeed()
     })
-    return { companies, feed, filters, message, error, fetching, loadFeed, fetchData, analyzePending, analysisLabel, impactLabel }
+    return { companies, feed, filters, message, error, fetching, loadFeed, fetchData, analyzePending, analysisLabel, impactLabel, reviewLabel, sourceLabel, typeLabel, ingestionStatusLabel }
   },
   template: `
     <section class="page">
@@ -93,10 +114,13 @@ const Feed = {
       <form class="panel-form" @submit.prevent="loadFeed">
         <select v-model="filters.company_id"><option value="">全部公司</option><option v-for="company in companies" :key="company.id" :value="company.id">{{ company.code }} - {{ company.name }}</option></select>
         <select v-model="filters.source_type"><option value="">公告+新闻</option><option value="announcement">公告</option><option value="news">新闻</option></select>
+        <select v-model="filters.source_name"><option value="">全部数据源</option><option value="akshare">AKShare</option><option value="local">本地 fallback</option></select>
         <input v-model="filters.category" placeholder="分类" />
         <select v-model="filters.min_importance"><option value="">全部重要性</option><option value="4">重要性 ≥ 4</option><option value="5">重要性 = 5</option></select>
         <select v-model="filters.is_risk"><option value="">全部风险</option><option value="true">仅风险</option><option value="false">非风险</option></select>
         <select v-model="filters.need_manual_review"><option value="">全部复核</option><option value="true">需人工复核</option><option value="false">无需复核</option></select>
+        <select v-model="filters.review_status"><option value="">全部复核状态</option><option value="pending">待复核</option><option value="approved">已确认</option><option value="rejected">已驳回</option><option value="edited">人工修改</option></select>
+        <select v-model="filters.has_ingestion_run"><option value="">全部采集记录</option><option value="true">有采集记录</option><option value="false">无采集记录</option></select>
         <select v-model="filters.logic_impact"><option value="">全部逻辑影响</option><option value="strengthen">增强</option><option value="weaken">削弱</option><option value="neutral">中性</option><option value="uncertain">不确定</option></select>
         <button type="submit">筛选</button>
       </form>
@@ -108,11 +132,22 @@ const Feed = {
           <a v-if="item.url" :href="item.url" target="_blank" rel="noreferrer" class="card-title">{{ item.title || '-' }}</a>
           <div v-else class="card-title">{{ item.title || '-' }}</div>
           <div class="summary-row">
-            <span>{{ item.source_type === 'announcement' ? '公告' : '新闻' }}</span><span>{{ item.company_name || '-' }}</span><span>{{ item.source || '-' }}</span><span>{{ item.category || 'uncategorized' }}</span><span>重要性 {{ item.importance_score ?? 0 }}</span>
+            <span>{{ typeLabel(item.source_type) }}</span><span>{{ item.company_name || '-' }}</span><span>{{ item.source || '-' }}</span><span>{{ item.category || 'uncategorized' }}</span><span>重要性 {{ item.importance_score ?? 0 }}</span>
             <span v-if="item.is_risk_event">风险</span><span v-if="item.is_business_update">业务更新</span><span v-if="item.need_review">需复核</span>
           </div>
           <div class="summary-row">
-            <span>状态 {{ analysisLabel(item.analysis_status) }}</span><span>影响 {{ impactLabel(item.impact_direction) }}</span><span>证据 {{ item.generated_evidence_count ?? 0 }} 条</span><span>{{ item.ai_analyzed ? '已 AI 分析' : '待 AI' }}</span>
+            <span>状态 {{ analysisLabel(item.analysis_status) }}</span><span>影响 {{ impactLabel(item.impact_direction) }}</span><span>证据 {{ item.generated_evidence_count ?? 0 }} 条</span><span>复核 {{ reviewLabel(item.review_status) }}</span><span>{{ item.ai_analyzed ? '已 AI 分析' : '待 AI' }}</span>
+          </div>
+          <div class="summary-row">
+            <span>数据源 {{ sourceLabel(item.source_name) }}</span>
+            <span>来源日期 {{ item.source_date || item.publish_time || '-' }}</span>
+            <span>{{ ingestionStatusLabel(item.ingestion_status) }}</span>
+            <router-link v-if="item.ingestion_run_id" :to="'/ingestion?run_id=' + item.ingestion_run_id" class="secondary-link">采集批次 #{{ item.ingestion_run_id }}</router-link>
+            <span v-else>无采集记录</span>
+            <span v-if="item.is_fallback_source">本地来源</span>
+          </div>
+          <div class="action-row" v-if="item.evidence_id">
+            <router-link :to="'/evidence/' + item.evidence_id" class="secondary-link">查看证据详情</router-link>
           </div>
           <p class="muted">关联：{{ item.related_business_line_names?.join(' / ') || '暂无业务线归因' }}</p>
         </article>

@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.data_sources.factory import financial_provider
 from app.models.models import Company, FinancialSnapshot, RiskEvent
 from app.services.evidence_rule_service import EvidenceRuleService
@@ -26,6 +27,7 @@ class FinancialFetchService:
                 try:
                     items = self.provider.fetch_financial_snapshots(company.code)
                     result['fetched_items'] += len(items)
+                    recent_periods = {dto.report_period for dto in sorted(items, key=lambda item: item.report_period, reverse=True)[:settings.financial_risk_recent_periods]}
                     for dto in items:
                         row = self.db.query(FinancialSnapshot).filter(FinancialSnapshot.company_id == company.id, FinancialSnapshot.report_period == dto.report_period).first()
                         if not row:
@@ -45,7 +47,11 @@ class FinancialFetchService:
                         row.raw_data = dto.raw_data
                         result['upserted'] += 1
                         self.db.flush()
-                        self._detect_financial_risk(company, row, result)
+                        if dto.report_period in recent_periods:
+                            self._detect_financial_risk(company, row, result)
+                        else:
+                            result.setdefault('skipped_old_financial_risk', 0)
+                            result['skipped_old_financial_risk'] += 1
                     self.db.commit()
                 except Exception as exc:
                     self.db.rollback()
@@ -67,7 +73,7 @@ class FinancialFetchService:
             title = f'{company.name} 归母净利润亏损'
             risk = self._get_or_create_risk(company, row, title, 'high', f'{row.report_period} 归母净利润为负')
             EvidenceRuleService(self.db).create_from_risk_event(risk)
-        result['warnings'].append({'company': company.name, 'period': row.report_period, 'message': '历史数据不足时不生成同比/环比强结论'})
+        result['warnings'].append({'company': company.name, 'period': row.report_period, 'message': '仅对最近报告期生成规则风险；历史财务用于查看和对比'})
 
     def _get_or_create_risk(self, company: Company, row: FinancialSnapshot, title: str, level: str, description: str):
         risk = self.db.query(RiskEvent).filter(

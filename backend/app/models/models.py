@@ -47,6 +47,7 @@ class Announcement(Base, TimestampMixin):
     title: Mapped[str] = mapped_column(String(255), index=True)
     publish_time: Mapped[datetime] = mapped_column(DateTime, index=True)
     source: Mapped[str | None] = mapped_column(String(50))
+    source_name: Mapped[str | None] = mapped_column(String(100))
     url: Mapped[str | None] = mapped_column(String(500))
     category: Mapped[str | None] = mapped_column(String(50))
     importance_score: Mapped[int] = mapped_column(Integer, default=0)
@@ -57,6 +58,8 @@ class Announcement(Base, TimestampMixin):
     summary: Mapped[str | None] = mapped_column(Text)
     raw_text: Mapped[str | None] = mapped_column(Text)
     content_hash: Mapped[str | None] = mapped_column(String(64), unique=True)
+    ingestion_run_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    raw_payload: Mapped[dict | None] = mapped_column(JSON)
     logic_impact: Mapped[str | None] = mapped_column(String(20))
     evidence_type: Mapped[str | None] = mapped_column(String(50))
     ai_confidence: Mapped[str | None] = mapped_column(String(20))
@@ -70,6 +73,7 @@ class NewsItem(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     title: Mapped[str] = mapped_column(String(255), index=True)
     source: Mapped[str | None] = mapped_column(String(50))
+    source_name: Mapped[str | None] = mapped_column(String(100))
     url: Mapped[str | None] = mapped_column(String(500))
     publish_time: Mapped[datetime] = mapped_column(DateTime, index=True)
     company_id: Mapped[int | None] = mapped_column(ForeignKey('companies.id'), index=True)
@@ -82,6 +86,8 @@ class NewsItem(Base, TimestampMixin):
     summary: Mapped[str | None] = mapped_column(Text)
     raw_text: Mapped[str | None] = mapped_column(Text)
     content_hash: Mapped[str | None] = mapped_column(String(64), unique=True)
+    ingestion_run_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    raw_payload: Mapped[dict | None] = mapped_column(JSON)
     logic_impact: Mapped[str | None] = mapped_column(String(20))
     evidence_type: Mapped[str | None] = mapped_column(String(50))
     ai_confidence: Mapped[str | None] = mapped_column(String(20))
@@ -155,6 +161,7 @@ class BusinessLineEvidence(Base, TimestampMixin):
     hypothesis_id: Mapped[int | None] = mapped_column(ForeignKey('investment_hypotheses.id'), index=True)
     risk_event_id: Mapped[int | None] = mapped_column(ForeignKey('risk_events.id'), index=True)
     source_type: Mapped[str] = mapped_column(String(20))
+    source_name: Mapped[str | None] = mapped_column(String(100))
     source_id: Mapped[int] = mapped_column(Integer)
     source_title: Mapped[str | None] = mapped_column(String(255))
     source_url: Mapped[str | None] = mapped_column(String(500))
@@ -176,6 +183,19 @@ class BusinessLineEvidence(Base, TimestampMixin):
     ai_generated_at: Mapped[datetime | None] = mapped_column(DateTime)
     manual_override: Mapped[bool] = mapped_column(Boolean, default=False)
     manual_note: Mapped[str | None] = mapped_column(Text)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    reviewer: Mapped[str | None] = mapped_column(String(100))
+    review_note: Mapped[str | None] = mapped_column(Text)
+    original_content: Mapped[str | None] = mapped_column(Text)
+    edited_content: Mapped[str | None] = mapped_column(Text)
+    hypothesis_relation: Mapped[str] = mapped_column(String(20), default='watch')
+    impact_strength: Mapped[str] = mapped_column(String(20), default='low')
+    affected_aspect: Mapped[str] = mapped_column(String(50), default='other')
+    evidence_summary: Mapped[str | None] = mapped_column(Text)
+    relation_note: Mapped[str | None] = mapped_column(Text)
+    ingestion_run_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    raw_payload: Mapped[dict | None] = mapped_column(JSON)
+    content_hash: Mapped[str | None] = mapped_column(String(64), index=True)
 
 
 class InvestmentHypothesis(Base, TimestampMixin):
@@ -190,6 +210,15 @@ class InvestmentHypothesis(Base, TimestampMixin):
     review_status: Mapped[str] = mapped_column(String(20), default='pending')
     latest_evidence_summary: Mapped[str | None] = mapped_column(Text)
     generated_by: Mapped[str] = mapped_column(String(20), default='rule')
+    thesis: Mapped[str | None] = mapped_column(Text)
+    business_lines: Mapped[list[dict] | None] = mapped_column(JSON, default=list)
+    watch_metrics: Mapped[list[str] | None] = mapped_column(JSON, default=list)
+    positive_evidence_rules: Mapped[list[str] | None] = mapped_column(JSON, default=list)
+    negative_evidence_rules: Mapped[list[str] | None] = mapped_column(JSON, default=list)
+    invalidation_conditions: Mapped[list[str] | None] = mapped_column(JSON, default=list)
+    current_view: Mapped[str] = mapped_column(String(20), default='neutral')
+    tracking_priority: Mapped[str] = mapped_column(String(20), default='medium')
+    note: Mapped[str | None] = mapped_column(Text)
 
 
 class FinancialSnapshot(Base, TimestampMixin):
@@ -210,7 +239,70 @@ class FinancialSnapshot(Base, TimestampMixin):
     debt_asset_ratio: Mapped[float | None] = mapped_column(Float)
     roe: Mapped[float | None] = mapped_column(Float)
     source: Mapped[str | None] = mapped_column(String(50))
+    source_name: Mapped[str | None] = mapped_column(String(100))
     raw_data: Mapped[dict | None] = mapped_column(JSON)
+    ingestion_run_id: Mapped[int | None] = mapped_column(Integer, index=True)
+
+
+class IngestionRun(Base, TimestampMixin):
+    __tablename__ = 'ingestion_runs'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int | None] = mapped_column(ForeignKey('companies.id'), index=True)
+    source_name: Mapped[str] = mapped_column(String(100), index=True)
+    source_type: Mapped[str] = mapped_column(String(50), index=True)
+    status: Mapped[str] = mapped_column(String(20), default='success', index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime)
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+    items_found: Mapped[int] = mapped_column(Integer, default=0)
+    items_created: Mapped[int] = mapped_column(Integer, default=0)
+    items_updated: Mapped[int] = mapped_column(Integer, default=0)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    raw_error: Mapped[str | None] = mapped_column(Text)
+    request_params: Mapped[dict | None] = mapped_column(JSON)
+    result_summary: Mapped[dict | None] = mapped_column(JSON)
+
+
+class ResearchNote(Base, TimestampMixin):
+    __tablename__ = 'research_notes'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey('companies.id'), index=True)
+    hypothesis_id: Mapped[int | None] = mapped_column(ForeignKey('investment_hypotheses.id'), index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    note_type: Mapped[str] = mapped_column(String(50), default='manual_note', index=True)
+    conclusion_direction: Mapped[str] = mapped_column(String(20), default='watch', index=True)
+    summary: Mapped[str | None] = mapped_column(Text)
+    content: Mapped[str | None] = mapped_column(Text)
+    cited_evidence_ids: Mapped[list[int] | None] = mapped_column(JSON, default=list)
+    evidence_count: Mapped[int] = mapped_column(Integer, default=0)
+    reviewed_evidence_count: Mapped[int] = mapped_column(Integer, default=0)
+    unreviewed_evidence_count: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(20), default='active', index=True)
+
+
+class DisciplineCheck(Base, TimestampMixin):
+    __tablename__ = 'discipline_checks'
+    id: Mapped[int] = mapped_column(primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey('companies.id'), index=True)
+    hypothesis_id: Mapped[int | None] = mapped_column(ForeignKey('investment_hypotheses.id'), index=True)
+    title: Mapped[str] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(20), default='draft', index=True)
+    discipline_result: Mapped[str] = mapped_column(String(20), default='blocked', index=True)
+    thesis_snapshot: Mapped[str | None] = mapped_column(Text)
+    action_reason: Mapped[str | None] = mapped_column(Text)
+    position_plan: Mapped[str | None] = mapped_column(Text)
+    max_position_pct: Mapped[float | None] = mapped_column(Float)
+    risk_acknowledgement: Mapped[str | None] = mapped_column(Text)
+    invalidation_plan: Mapped[str | None] = mapped_column(Text)
+    checklist: Mapped[dict | None] = mapped_column(JSON, default=dict)
+    cited_evidence_ids: Mapped[list[int] | None] = mapped_column(JSON, default=list)
+    cited_research_note_ids: Mapped[list[int] | None] = mapped_column(JSON, default=list)
+    evidence_count: Mapped[int] = mapped_column(Integer, default=0)
+    reviewed_evidence_count: Mapped[int] = mapped_column(Integer, default=0)
+    unreviewed_evidence_count: Mapped[int] = mapped_column(Integer, default=0)
+    rejected_evidence_count: Mapped[int] = mapped_column(Integer, default=0)
+    blockers: Mapped[list[str] | None] = mapped_column(JSON, default=list)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class JobRun(Base, TimestampMixin):

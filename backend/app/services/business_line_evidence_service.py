@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.models.models import Announcement, BusinessLine, BusinessLineEvidence, NewsItem, RiskEvent
@@ -46,7 +46,7 @@ class BusinessLineEvidenceService:
                 summary=summary,
                 reason=reason,
                 confidence=confidence or 'rule',
-                review_status='pending' if need_manual_review else 'confirmed',
+                review_status='pending' if need_manual_review else 'approved',
                 need_manual_review=need_manual_review,
             ))
             count += 1
@@ -70,7 +70,14 @@ class BusinessLineEvidenceService:
         self.db.commit()
 
     def get_company_evidence(self, company_id: int, business_line_id=None, direction=None, evidence_type=None, logic_impact=None, days=30):
-        q = self.db.query(BusinessLineEvidence).filter(BusinessLineEvidence.company_id == company_id, BusinessLineEvidence.created_at >= datetime.utcnow() - timedelta(days=days))
+        cutoff = datetime.utcnow() - timedelta(days=days)
+        q = self.db.query(BusinessLineEvidence).filter(
+            BusinessLineEvidence.company_id == company_id,
+            or_(
+                BusinessLineEvidence.source_date >= cutoff,
+                and_(BusinessLineEvidence.source_date.is_(None), BusinessLineEvidence.created_at >= cutoff),
+            )
+        )
         if business_line_id:
             q = q.filter(BusinessLineEvidence.business_line_id == business_line_id)
         if direction:
