@@ -79,15 +79,32 @@ class CompanyInitializationService:
                 line_ids.append(business_line.id)
             if not self.db.query(InvestmentHypothesis).filter(InvestmentHypothesis.company_id == company.id).first():
                 disproof = payload.get('draft_disproof_conditions', result.get('draft_disproof_conditions') or [])
+                draft_lines = payload.get('draft_business_lines', result.get('draft_business_lines') or [])
+                thesis = payload.get('draft_thesis') or result.get('draft_thesis') or f'{company.name} 核心经营逻辑待验证'
                 self.db.add(InvestmentHypothesis(
                     company_id=company.id,
-                    title=(payload.get('draft_thesis') or result.get('draft_thesis') or f'{company.name} 核心经营逻辑待验证')[:120],
-                    description=payload.get('draft_thesis') or result.get('draft_thesis'),
+                    title=thesis[:120],
+                    description=thesis,
                     related_business_line_ids=line_ids,
                     falsification_conditions=disproof if isinstance(disproof, list) else [disproof],
                     status='unverified',
                     review_status='pending',
                     generated_by='rule',
+                    thesis=thesis,
+                    business_lines=[{
+                        'name': line.get('name') or '',
+                        'description': line.get('description') or '',
+                        'keywords': line.get('keywords') or [],
+                        'importance': 'high' if line.get('role') == 'core' else 'medium',
+                        'watch_points': line.get('key_metrics') or ['营业收入', '毛利率', '经营现金流'],
+                    } for line in draft_lines if line.get('name')],
+                    watch_metrics=['营收增速', '毛利率', '归母净利润', '经营现金流', '应收账款', '存货', '新项目定点'],
+                    positive_evidence_rules=['主营业务收入增长', '毛利率改善', '新增重要客户或项目定点', '经营现金流改善'],
+                    negative_evidence_rules=['大股东减持', '毛利率下降', '应收账款或存货异常增加', '经营现金流恶化'],
+                    invalidation_conditions=disproof if isinstance(disproof, list) else [disproof],
+                    current_view='neutral',
+                    tracking_priority='high',
+                    note='智能初始化生成的投资假设草案，需人工复核。',
                 ))
             self.db.commit()
 

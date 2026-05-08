@@ -5,6 +5,11 @@ const App = {
         { to: '/', label: 'Dashboard' },
         { to: '/companies', label: '自选股' },
         { to: '/feed', label: '信息流' },
+        { to: '/review', label: '人工复核' },
+        { to: '/ingestion', label: '采集调试' },
+        { to: '/research-notes', label: '研究记录' },
+        { to: '/report-drafts/new', label: '研究快照' },
+        { to: '/discipline-checks', label: '纪律检查' },
         { to: '/risks', label: '风险事件' },
         { to: '/reports', label: '报告中心' },
         { to: '/jobs', label: '任务状态' }

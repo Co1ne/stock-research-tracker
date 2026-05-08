@@ -9,6 +9,7 @@ from app.models.models import Announcement, BusinessLine, BusinessLineEvidence, 
 DEFAULT_FINANCIAL_LINE = '财务质量'
 DEFAULT_GOVERNANCE_LINE = '公司治理'
 DEFAULT_MAIN_LINE = '主营业务'
+GENERIC_KEYWORDS = {'主营业务', '业务', '产品', '公司', '项目', '收入', '销售', '服务', '平台', '系统', '智能', '新能源', '材料', '设备'}
 
 
 class EvidenceRuleService:
@@ -66,6 +67,7 @@ class EvidenceRuleService:
             hypothesis_id=hypothesis.id if hypothesis else None,
             risk_event_id=risk.id,
             source_type=risk.source_type,
+            source_name=getattr(source, 'source_name', None) or getattr(source, 'source', None),
             source_id=risk.source_id,
             source_title=source_title,
             source_url=getattr(source, 'url', None),
@@ -80,6 +82,8 @@ class EvidenceRuleService:
             confidence='rule',
             review_status='pending',
             need_manual_review=True,
+            ingestion_run_id=getattr(source, 'ingestion_run_id', None),
+            raw_payload=getattr(source, 'raw_payload', None) or getattr(source, 'raw_data', None),
         ))
         self._touch_hypothesis(hypothesis, risk.title) if hypothesis else None
         self.db.flush()
@@ -110,6 +114,7 @@ class EvidenceRuleService:
             business_line_id=business_line.id if business_line else None,
             hypothesis_id=hypothesis.id if hypothesis else None,
             source_type=source_type,
+            source_name=getattr(item, 'source_name', None) or getattr(item, 'source', None),
             source_id=item.id,
             source_title=item.title,
             source_url=item.url,
@@ -122,8 +127,10 @@ class EvidenceRuleService:
             summary=item.summary or '',
             reason=item.ai_reason or ('规则识别到风险或需复核信息，先沉淀为待确认证据。' if item.is_risk_event or item.need_manual_review else '规则识别到业务线相关信息，需人工复核其影响。'),
             confidence=item.ai_confidence or 'rule',
-            review_status='pending' if item.need_manual_review else 'confirmed',
+            review_status='pending',
             need_manual_review=item.need_manual_review,
+            ingestion_run_id=getattr(item, 'ingestion_run_id', None),
+            raw_payload=getattr(item, 'raw_payload', None),
         ))
         self._touch_hypothesis(hypothesis, item.title) if hypothesis else None
         self.db.flush()
@@ -143,12 +150,18 @@ class EvidenceRuleService:
     def _source_date(self, source):
         if hasattr(source, 'publish_time'):
             return source.publish_time
+        if hasattr(source, 'report_period') and source.report_period:
+            try:
+                return datetime.fromisoformat(str(source.report_period))
+            except ValueError:
+                return getattr(source, 'created_at', None)
         return getattr(source, 'created_at', None)
 
     def _match_business_line(self, company_id: int, text: str) -> BusinessLine | None:
         lines = self.db.query(BusinessLine).filter(BusinessLine.company_id == company_id).all()
         for line in lines:
-            if any(keyword and keyword in text for keyword in (line.keywords or [])):
+            keywords = [keyword for keyword in (line.keywords or []) if keyword and keyword not in GENERIC_KEYWORDS and len(keyword) >= 4]
+            if any(keyword in text for keyword in keywords):
                 return line
         return None
 

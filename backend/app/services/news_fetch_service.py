@@ -75,7 +75,8 @@ class NewsFetchService:
                             result['duplicated'] += 1
                             continue
                         text = f"{dto.title} {dto.summary or ''} {dto.raw_text or ''}"
-                        matched = match_business_lines(text, line_payload)
+                        filtered_line_payload = [{'name': line.name, 'keywords': self._business_keywords([company.name, company.code, *(line.keywords or [])])} for line in lines]
+                        matched = match_business_lines(text, filtered_line_payload)
                         risk, level = detect_risk(text)
                         item = NewsItem(
                             title=dto.title,
